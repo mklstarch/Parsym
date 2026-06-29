@@ -11,4 +11,4 @@
 (assert (>= 3 (+ (* 4 C) (* (- 1) B) (* (- 2) E))))
 (assert (<= (+ A B C) 9))
 (check-sat)
-(get-model)
+;(get-model)
