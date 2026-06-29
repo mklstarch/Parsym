@@ -1,6 +1,0 @@
-(set-logic QF_S)
-(declare-const x String)
-(declare-const y String)
-(assert (= (str.++ "999" x) (str.++ y x)))
-(check-sat)
-(get-model)

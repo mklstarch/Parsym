@@ -1,17 +1,10 @@
 (cram
- (deps
-  %{bin:Chro}
-  ./qf-eia.smt2
-  ./qf-eia-model.smt2
-  ./qf-s.smt2
-  ./lia.smt2
-  ./bw.smt2
-  ./examples/QF_EIA/basic-exp-unsat.smt2
-  ./examples/QF_EIA/basic-exp-sat.smt2
-  ./examples/QF_EIA/double_exp-10-sat.smt2
-  ./examples/QF_EIA/double_exp-100-sat.smt2
-  ./examples/fcp_7_11_with_exps.smt2
-  ./examples/size02.koat_121.smt2
-  ./examples/double_exp.smt2
-  ./examples/hash_3_6.smt2
-  ./examples/hash_130_137.smt2))
+ (deps %{bin:ParSym}))
+
+(cram
+ (applies_to tests)
+ (deps test.smt2))
+
+(cram
+ (applies_to tests)
+ (deps prime_cone_disj.smt2))

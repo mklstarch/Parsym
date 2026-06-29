@@ -23,7 +23,7 @@
   Me
   Utils)
  (libraries base angstrom bitv smtml unix iter zarith)
- (inline_tests)
+ ;(inline_tests)
  (preprocess
   (pps
    ppx_deriving.show

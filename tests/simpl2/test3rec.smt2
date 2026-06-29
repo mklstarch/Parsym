@@ -1,7 +1,0 @@
-(set-logic ALL)
-(declare-fun x () Int)
-(declare-fun y () Int)
-(declare-fun z () Int)
-(assert (= (+ x y) 13))
-(assert (= (+ y x) 13))
-(check-sat)

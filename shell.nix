@@ -1,6 +1,6 @@
 { pkgs ? import <nixpkgs> {} }:
 pkgs.mkShell {
-    name = "Chrobelias";
+    name = "Parsym";
     packages = with pkgs; [ 
       gmp
       opam
