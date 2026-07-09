@@ -2,7 +2,7 @@ let nfa_cnt = ref 0
 
 let tracers =
   lazy
-    (Sys.getenv_opt "CHRO_TRACE"
+    (Sys.getenv_opt "PBAC_TRACE"
      |> Option.map (String.split_on_char ':')
      |> Option.value ~default:[])
 ;;

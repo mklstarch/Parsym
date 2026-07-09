@@ -1,5 +1,3 @@
-(* SPDX-License-Identifier: MIT *)
-(* Copyright 2024-2025, Chrobelias. *)
 let trace_log fmt = Debug.trace "simpl" fmt
 let _config = Config.config
 let _base = _config.enc_base
@@ -7,7 +5,7 @@ let _base = _config.enc_base
 module Z3 = Smtml.Z3_mappings.Solver
 
 let _z3_solver =
-  Z3.make ~params:Smtml.Params.(default () $ (Random_seed, Config.config.seed)) ()
+  Z3.make ~params:Smtml.Params.(default () $ (Random_seed, _config.seed)) ()
 ;;
 
 let ( -- ) i j =
@@ -661,7 +659,6 @@ let pp_step fmt step =
 ;;
 
 let basic_simplify step ?multiple env ast =
-  (* AM: here I have removed another trace logger *)
   trace_log "iter(%a)= @[%a@]" pp_step step AstL.pp_smtlib2 ast;
   let rec loop step env ast =
     let (module Symantics) = make_main_symantics env in
@@ -780,11 +777,7 @@ let check_sat ?(base = _config.enc_base) ast =
     Z3.check _z3_solver ~assumptions:[ ph ]
 ;;
 
-(*AM: if I understand smtml correctly, in this way we are populating 
-      the state of the solver with additional lemmas, while only adding ph 
-      temporarily. My hope is that we will check often similar formulas *)
-
-let flag () = Sys.getenv_opt "CHRO_DEBUG" |> Option.is_some
+let flag () = Sys.getenv_opt "PBAC_DEBUG" |> Option.is_some
 
 let debug_printf ppf =
   if flag ()
@@ -841,8 +834,8 @@ let get_states_z3 ph get_state =
   let open Lia in
   (* Debug.trace "Z3" "Composed ast: %a" AstL.pp_smtlib2 ph; *)
   let ph = apply_symnatics (module SMT) ph in
-  Z3.push _z3_solver;
   Debug.trace "Z3" "Getting a solution with Z3...";
+  Z3.push _z3_solver;
   let t0 = Unix.gettimeofday () in
   let z3_result = Z3.check _z3_solver ~assumptions:[ ph ] in
   let elapsed = Unix.gettimeofday () -. t0 in

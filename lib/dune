@@ -22,14 +22,12 @@
   SimplII
   Me
   Utils)
- (libraries base angstrom bitv smtml unix iter zarith)
- ;(inline_tests)
+ (libraries base angstrom bitv smtml unix iter zarith lwt.unix)
  (preprocess
   (pps
    ppx_deriving.show
    ppx_compare
    ppx_variants_conv
-   ppx_inline_test
    ppx_assert
    ppx_expect
    ppx_regexp)))

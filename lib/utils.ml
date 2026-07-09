@@ -1,10 +1,9 @@
-(* SPDX-License-Identifier: MIT *)
-(* Copyright 2024-2025, Chrobelias. *)
-
 module Map = Base.Map.Poly
 module Set = Base.Set.Poly
 
 let ( let* ) = Option.bind
+
+exception Timeout
 
 let option_map_to_map_option (map : ('a, 'b option) Map.t) : ('a, 'b) Map.t option =
   Map.fold map ~init:(Some Map.empty) ~f:(fun ~key ~data acc ->
@@ -201,4 +200,17 @@ let find_map_n n f lst =
       else aux acc count tl
   in
   aux [] n lst
+;;
+
+let unique lst =
+  let counts = Hashtbl.create (List.length lst) in
+  List.iter
+    (fun x ->
+       let count =
+         try Hashtbl.find counts x with
+         | Not_found -> 0
+       in
+       Hashtbl.replace counts x (count + 1))
+    lst;
+  List.filter (fun x -> Hashtbl.find counts x = 1) lst
 ;;

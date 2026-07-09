@@ -1,15 +1,23 @@
-(* SPDX-License-Identifier: MIT *)
-(* Copyright 2024-2025, Chrobelias. *)
 let trace_log fmt = Debug.trace "solver" fmt
 let _config = Config.config
 let _base = _config.enc_base
+let result_found = ref false
 
 let ( -- ) i j =
   let rec aux n acc = if n < i then acc else aux (n - 1) (n :: acc) in
   aux j []
 ;;
 
-let do_if_range f = if _config.base_min < _config.base_max then f () else ()
+let do_if_range f =
+  if _config.base_min < _config.base_max && _config.with_info && not !result_found
+  then f ()
+  else ()
+;;
+
+let with_to f =
+  match _config.base_to with
+  | Some _ | None -> f
+;;
 
 module Set = Base.Set.Poly
 module Map = Base.Map.Poly
@@ -112,7 +120,7 @@ struct
          if Nfa.run nfa then NfaCollection.n () else NfaCollection.z ()
        | Ir.SReg (atom, reg) -> Eval.eval_sreg vars atom reg
        | Ir.SRegRaw (atom, reg) -> Eval.eval_sregraw vars atom reg
-       | _ -> failwith "Unexpected constraint")
+       | ir -> failwith (Format.asprintf "Unexpected constraint %a" Ir.pp ir))
       |> fun nfa ->
       trace_log "Done %a" Ir.pp ir;
       Debug.dump_nfa
@@ -173,16 +181,22 @@ struct
     (* free_vars have type Ir.atom (only variables in LIA case) *)
     let free_vars = ir |> Ir.collect_free_atoms |> Set.to_list in
     trace_log "Ir: %a" Ir.pp ir;
+    trace_log "Ir approx size = %d" (Ir.approx_size ir);
     if
-      Config.config.bool_comb_sat
+      _config.bool_comb_sat || Ir.approx_size ir >= _config.huge_for_inter
       (* We use complex acceptance condition for a list of nfas *)
     then (
       let skel, nfas, vars = ir |> eval_bool_comb in
       Eval.bool_comb_handler skel nfas vars free_vars)
     else (
       (* Classic Symbolic solving: with intersections and unions *)
-      let nfa, vars = ir |> eval in
-      Eval.handler nfa vars free_vars)
+        try
+          let nfa, vars = ir |> eval in
+          Eval.handler nfa vars free_vars
+        with
+        | _ ->
+          let skel, nfas, vars = ir |> eval_bool_comb in
+          Eval.bool_comb_handler skel nfas vars free_vars)
   ;;
 
   let check_sat ir
@@ -211,7 +225,7 @@ struct
     |> List.map (function
       | Some model ->
         if Map.is_empty model
-        then `Sat (fun () -> Result.error `No_model)
+        then `Unknown
         else sat_if_no_unsupp (fun () -> Result.Ok model)
       | None -> `Unsat)
   ;;
@@ -248,17 +262,35 @@ module MsbSym =
       ;;
 
       let bool_comb_handler skel nfas vars free_vars =
-        match
-          NfaSym.any_path_bool_comb
-            skel
-            nfas
-            (List.map (fun v -> Map.find_exn vars v) free_vars)
-        with
-        | Some (model, _) ->
-          [ Some
-              (model |> List.mapi (fun i v -> List.nth free_vars i, v) |> Map.of_alist_exn)
-          ]
-        | None -> [ None ]
+        let check_base () =
+          match
+            with_to
+              NfaSym.any_path_bool_comb
+              skel
+              nfas
+              (List.map (fun v -> Map.find_exn vars v) free_vars)
+          with
+          | Some (model, _) ->
+            [ Some
+                (model
+                 |> List.mapi (fun i v -> List.nth free_vars i, v)
+                 |> Map.of_alist_exn)
+            ]
+          | None -> [ None ]
+        in
+        try check_base () with
+        | Utils.Timeout ->
+          let rec loop num =
+            if num > 0
+            then (
+              try check_base () with
+              | Utils.Timeout ->
+                _config.seed <- 20 + Random.int 60;
+                trace_log "Attempt #%d" (11 - num);
+                loop (num - 1))
+            else [ Some Map.empty ]
+          in
+          loop _config.seed_attempts
       ;;
 
       let handler nfa vars free_vars =
@@ -303,44 +335,70 @@ module MsbPar = struct
         ;;
 
         let bool_comb_handler skel nfas vars free_vars =
-          _config.base_min -- _config.base_max
-          |> List.map (fun base ->
+          let check base =
             match
-              NfaPar.any_path_bool_comb2
+              with_to
+                NfaPar.any_path_bool_comb2
                 ~base
                 skel
                 nfas
                 (List.map (fun v -> Map.find_exn vars v) free_vars)
             with
             | Some (model, _) ->
+              if _config.problem = `Exi then result_found := true;
               do_if_range (fun () -> Format.printf "base %d: sat\n%!" base);
               Some
                 (model
                  |> List.mapi (fun i v -> List.nth free_vars i, v)
                  |> Map.of_alist_exn)
             | None ->
+              if _config.problem = `Uni then result_found := true;
               do_if_range (fun () -> Format.printf "base %d: unsat\n%!" base);
-              None)
+              None
+          in
+          _config.base_min -- _config.base_max
+          |> List.map (fun base ->
+            if !result_found
+            then Some Map.empty
+            else (
+              let rec loop num =
+                if num > 0
+                then (
+                  try check base with
+                  | Utils.Timeout ->
+                    _config.seed <- 20 + Random.int 60;
+                    trace_log "Attempt #%d" (11 - num);
+                    loop (num - 1))
+                else (
+                  do_if_range (fun () -> Format.printf "base %d: timeout\n%!" base);
+                  Some Map.empty)
+              in
+              loop _config.seed_attempts))
         ;;
 
         let handler nfa vars free_vars =
           _config.base_min -- _config.base_max
           |> List.map (fun base ->
-            match
-              NfaPar.any_path2
-                ~base
-                nfa
-                (List.map (fun v -> Map.find_exn vars v) free_vars)
-            with
-            | Some (model, _) ->
-              do_if_range (fun () -> Format.printf "base %d: sat\n%!" base);
-              Some
-                (model
-                 |> List.mapi (fun i v -> List.nth free_vars i, v)
-                 |> Map.of_alist_exn)
-            | None ->
-              do_if_range (fun () -> Format.printf "base %d: unsat\n%!" base);
-              None)
+            if !result_found
+            then Some Map.empty
+            else (
+              match
+                NfaPar.any_path2
+                  ~base
+                  nfa
+                  (List.map (fun v -> Map.find_exn vars v) free_vars)
+              with
+              | Some (model, _) ->
+                if _config.problem = `Exi then result_found := true;
+                do_if_range (fun () -> Format.printf "base %d: sat\n%!" base);
+                Some
+                  (model
+                   |> List.mapi (fun i v -> List.nth free_vars i, v)
+                   |> Map.of_alist_exn)
+              | None ->
+                if _config.problem = `Uni then result_found := true;
+                do_if_range (fun () -> Format.printf "base %d: unsat\n%!" base);
+                None))
         ;;
       end)
 
@@ -381,35 +439,42 @@ let check_sat ir
     _config.base_min -- _config.base_max
     |> List.concat_map (fun base ->
       Config.config.enc_base <- base;
-      ir
-      |> MsbSym.check_sat
-      |> List.map (function
-        | `Sat model ->
-          do_if_range (fun () -> Format.printf "base %d: sat\n%!" base);
-          `Sat
-            (fun tys ->
-              let* model = model () in
-              let main_model =
-                Map.mapi
-                  ~f:(fun ~key:k ~data:v ->
-                    let ty = Map.find tys k |> Option.value ~default:`Int in
-                    match ty with
-                    | `Int ->
-                      begin try `Int (int_of_path base v) with
-                      | Invalid_argument ex as exp ->
-                        Format.printf
-                          "Something is wrong: %s\n%!"
-                          (Printexc.to_string exp);
-                        `Str (str_of_path v)
-                      end
-                    | `Str -> `Str (str_of_path v))
-                  model
-              in
-              Result.ok main_model)
-        | `Unsat ->
-          do_if_range (fun () -> Format.printf "base %d: unsat\n%!" base);
-          `Unsat
-        | `Unknown -> failwith "Unexpected 'unknown' in chack_sym_sat"))
+      if !result_found
+      then [ `Unknown ir ]
+      else
+        ir
+        |> MsbSym.check_sat
+        |> List.map (function
+          | `Sat model ->
+            if _config.problem = `Exi then result_found := true;
+            do_if_range (fun () -> Format.printf "base %d: sat\n%!" base);
+            `Sat
+              (fun tys ->
+                let* model = model () in
+                let main_model =
+                  Map.mapi
+                    ~f:(fun ~key:k ~data:v ->
+                      let ty = Map.find tys k |> Option.value ~default:`Int in
+                      match ty with
+                      | `Int ->
+                        begin try `Int (int_of_path base v) with
+                        | Invalid_argument ex as exp ->
+                          Format.printf
+                            "Something is wrong: %s\n%!"
+                            (Printexc.to_string exp);
+                          `Str (str_of_path v)
+                        end
+                      | `Str -> `Str (str_of_path v))
+                    model
+                in
+                Result.ok main_model)
+          | `Unsat ->
+            if _config.problem = `Uni then result_found := true;
+            do_if_range (fun () -> Format.printf "base %d: unsat\n%!" base);
+            `Unsat
+          | `Unknown ->
+            do_if_range (fun () -> Format.printf "base %d: timeout\n%!" base);
+            `Unknown ir))
   in
   let chack_par_sat ir =
     trace_log "Running Parametric MSB mode";

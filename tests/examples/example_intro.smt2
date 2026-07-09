@@ -5,4 +5,4 @@
 (assert (= A (+ 1 (* 3 B))))
 (assert (>= A 2))
 (check-sat)
-(get-model)
+;(get-model)

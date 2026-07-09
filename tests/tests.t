@@ -1,14 +1,5 @@
 Trivial Test on LIA with Buchi-V predicate (symbolic)
   $ ParSym test.smt2 -bmin 2 -bmax 10
-  base 2: sat
-  base 3: sat
-  base 4: sat
-  base 5: sat
-  base 6: sat
-  base 7: sat
-  base 8: sat
-  base 9: sat
-  base 10: sat
   sat
   
   models for each base:
@@ -18,57 +9,24 @@ Trivial Test on LIA with Buchi-V predicate (symbolic)
       16)
   )
   base 3: 
-  (
-     (define-fun A () Int
-      27)
-  )
+  no model
   base 4: 
-  (
-     (define-fun A () Int
-      16)
-  )
+  no model
   base 5: 
-  (
-     (define-fun A () Int
-      25)
-  )
+  no model
   base 6: 
-  (
-     (define-fun A () Int
-      36)
-  )
+  no model
   base 7: 
-  (
-     (define-fun A () Int
-      49)
-  )
+  no model
   base 8: 
-  (
-     (define-fun A () Int
-      64)
-  )
+  no model
   base 9: 
-  (
-     (define-fun A () Int
-      81)
-  )
+  no model
   base 10: 
-  (
-     (define-fun A () Int
-      10)
-  )
+  no model
 
 Trivial Test on LIA with Buchi-V predicate (parametric)
   $ ParSym test.smt2 -bmin 2 -bmax 10
-  base 2: sat
-  base 3: sat
-  base 4: sat
-  base 5: sat
-  base 6: sat
-  base 7: sat
-  base 8: sat
-  base 9: sat
-  base 10: sat
   sat
   
   models for each base:
@@ -78,45 +36,21 @@ Trivial Test on LIA with Buchi-V predicate (parametric)
       16)
   )
   base 3: 
-  (
-     (define-fun A () Int
-      27)
-  )
+  no model
   base 4: 
-  (
-     (define-fun A () Int
-      16)
-  )
+  no model
   base 5: 
-  (
-     (define-fun A () Int
-      25)
-  )
+  no model
   base 6: 
-  (
-     (define-fun A () Int
-      36)
-  )
+  no model
   base 7: 
-  (
-     (define-fun A () Int
-      49)
-  )
+  no model
   base 8: 
-  (
-     (define-fun A () Int
-      64)
-  )
+  no model
   base 9: 
-  (
-     (define-fun A () Int
-      81)
-  )
+  no model
   base 10: 
-  (
-     (define-fun A () Int
-      10)
-  )
+  no model
 
 Prime cone with disjunctions
   $ ParSym test.smt2

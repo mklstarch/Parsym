@@ -5,9 +5,6 @@ let trace_log fmt = Debug.trace "ir" fmt
 let _config = Config.config
 let _base = _config.enc_base
 
-(* TODO: the perfect implementation should differentiate between atoms in *)
-(* different theories. But it requires a lot more complex parsing due to *)
-(* the state that should be stored. So let's stick with simpler stuff now. *)
 type atom = Var of string [@@deriving variants]
 
 let eq_atom : atom -> atom -> bool = Stdlib.( = )
@@ -242,9 +239,7 @@ let pp_smtlib2 ppf ir =
         helper
         rhs
     | (Stoi _ | SReg _ | SRegRaw _) as ir -> Format.fprintf ppf "%a" pp ir
-    | Land [ x ] ->
-      (* TODO: should be eliminated in simplifier *)
-      helper ppf x
+    | Land [ x ] -> helper ppf x
     | Land xs ->
       fprintf ppf "@[<v 2>@[(and@]@ ";
       List.iter (fprintf ppf "@[%a@]@ " helper) xs;
@@ -486,6 +481,31 @@ let collect_atomics =
     Set.empty
 ;;
 
+(** Approximate size of an IR formula, used to sort conjuncts so that smaller
+    (fewer-state) NFAs are intersected first, reducing peak memory. *)
+
+let approx_size ir =
+  let rec helper = function
+    | True -> 1
+    | Rel (_, term, b) ->
+      let a_norm =
+        term
+        |> Map.data
+        |> List.fold_left (fun acc a -> Z.(acc + abs a)) Z.zero
+        |> Z.to_int
+      in
+      let b_log = if Z.(b = zero) then 1 else Z.(log2 (abs b)) + 1 in
+      int_of_float (sqrt (float_of_int (a_norm * b_log))) + a_norm
+    | V _ | Reg _ | SReg _ | SRegRaw _ | Stoi _ -> 3
+    | Lnot ir -> helper ir + 1
+    | Land irs -> List.fold_left (fun acc ir -> acc * helper ir) 1 irs
+    | Lor irs -> List.fold_left (fun acc ir -> acc + helper ir) 1 irs
+    | Exists (_, ir) -> 1 + helper ir
+    | Unsupp _ -> 1
+  in
+  helper ir
+;;
+
 let antiprenex =
   fun ir ->
   if _config.antiprenex_mode = `Disable
@@ -626,6 +646,52 @@ let simpl ir =
          |> List.concat_map (function
            | Lor lst -> lst
            | ir -> [ ir ]))
+    | ir -> ir)
+;;
+
+let simpl_divisibility ir =
+  let short_mod x y =
+    let short x y = if Z.(abs x <= abs y) then x else y in
+    let z = Z.(x mod y) in
+    if Z.(z >= zero) then short z Z.(z - y) else short z Z.(z + y)
+  in
+  let unique_vars =
+    fold
+      (fun acc -> function
+         | Reg (_, atoms) -> atoms @ acc
+         | V (atom, atom') | Stoi (atom, atom') -> atom :: atom' :: acc
+         | SReg (atom, _) | SRegRaw (atom, _) -> atom :: acc
+         | Rel (_, term, _) -> Map.keys term @ acc
+         | _ -> acc)
+      []
+      ir
+    |> Utils.unique
+  in
+  ir
+  |> map (function
+    | Rel (Eq, term, c) as equality ->
+      let uniques =
+        Map.fold term ~init:[] ~f:(fun ~key ~data acc ->
+          if List.mem key unique_vars then (key, data) :: acc else acc)
+      in
+      (match uniques with
+       | x :: xs -> begin
+         let var, coeff =
+           List.fold_left
+             (fun (x_key, x_coeff) (key, data) ->
+                if data < x_coeff then key, data else x_key, x_coeff)
+             x
+             xs
+         in
+         let term' =
+           term
+           |> Map.mapi ~f:(fun ~key ~data ->
+             if eq_atom key var then data else short_mod data coeff)
+           |> Map.filter ~f:(fun coeff -> Z.(coeff <> zero))
+         in
+         Rel (Eq, term', short_mod c coeff)
+         end
+       | [] -> equality)
     | ir -> ir)
 ;;
 

@@ -1,5 +1,3 @@
-(* SPDX-License-Identifier: MIT *)
-(* Copyright 2026, RLIA[t]. *)
 [@@@warning "+unused-value-declaration"]
 
 let trace_log fmt = Debug.trace "simpl" fmt
@@ -617,7 +615,7 @@ let eq_propagation : ?multiple:bool -> Env.t -> Ast.t -> Env.t * Ast.t =
   in
   let safe_extend_exn env v rhs =
     try Some (extend_exn env v rhs) with
-    | Env.Occurs -> None
+    | Env.Occurs | Env.BadArg -> None
   in
   let fold_and_filter multiple f acc xs =
     let acc = ref acc in
@@ -684,9 +682,6 @@ let eq_propagation : ?multiple:bool -> Env.t -> Ast.t -> Env.t * Ast.t =
                v2
                S.(add [ mul [ constz Z.minus_one; constz c1; Atom v1 ]; rhs ]))
         | _ -> None
-        (* TODO(Kakadu): Support proper occurs check to workaround recursive substitutions *)
-        (* MS: I am going to add try / catch for the Occurs exceeption *)
-        (* Note: presence of key means we already simplified this variable in another equality *)
       with
       | Env.Occurs -> None
     in
@@ -1011,9 +1006,6 @@ let subst env ast =
 ;;
 
 let basic_simplify step ?multiple (env : Env.t) ast =
-  (*AM: removed the following trace logger: let log =
-    if step = [ 0 ] then fun ppf -> Format.ifprintf Format.std_formatter ppf else log
-  in *)
   trace_log "iter(%a)= @[%a@]" pp_step step Ast.pp_smtlib2 ast;
   let alpha = alpha_with_extra_char ast in
   trace_log

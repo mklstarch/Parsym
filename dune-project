@@ -6,10 +6,6 @@
 
 (generate_opam_files true)
 
-(authors "Mikhail Starchak, Alessio Mansutti")
-
-(maintainers "Mikhail Starchak, Alessio Mansutti")
-
 (license MIT)
 
 (package
