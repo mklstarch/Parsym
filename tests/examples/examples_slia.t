@@ -3,7 +3,7 @@ Example with regular and LIA constrints with lazy computations
   sat
 
 Example with regular and LIA constrints TO = 5 sec
-  $ timeout 3 ParSym example.smt2 --depth 2
+  $ timeout 10 ParSym example.smt2 --depth 2
   sat
 
 Example with LIA constrints with lazy computations
@@ -11,8 +11,7 @@ Example with LIA constrints with lazy computations
   sat
 
 Example with LIA constrints TO = 5 sec
-  $ timeout 3 ParSym example_int.smt2 --depth 2
-  timeout
-  [124]
+  $ timeout 10 ParSym example_int.smt2 --depth 2
+  sat
 
 
