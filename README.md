@@ -1,14 +1,6 @@
 # Parsym - SMT-solver based on (parametric) symbolic automata for Büchi arithmetic on parametric base 
 
-Supplementary Material for Submission #360
-
-## Executable binary for Linux x86-64
-
-You can simply use 
-
-```bash
-./parsym file.smt2
-```
+TODO: Description.
 
 ## Building
 
@@ -26,6 +18,12 @@ opam switch create 5.3.0+flambda --packages=ocaml-variants.5.3.0+options,ocaml-o
 'parsym' is built as follows:
 
 ```bash
+
+# Clone the Parsym repository.
+git clone https://github.com/mklstarch/Parsym.git
+
+# Change directory to Parsym.
+cd Parsym
 
 # Installing Parsym dependencies.
 opam install . --deps-only --with-test
