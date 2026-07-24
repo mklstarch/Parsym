@@ -239,8 +239,6 @@ and _to_ir tys orig_expr =
         | Ty.Relop.Ne -> fun t c -> Ast.lnot (Ast.rlia (Ast.RLia.eq t c I))
         | Ty.Relop.Le -> fun t c -> Ast.rlia (Ast.RLia.leq t c)
         | Ty.Relop.Lt -> fun t c -> Ast.rlia (Ast.RLia.lt t c)
-        | Ty.Relop.Ge -> fun t c -> Ast.rlia (Ast.RLia.geq t c)
-        | Ty.Relop.Gt -> fun t c -> Ast.rlia (Ast.RLia.gt t c)
         | _ -> failwith "Unsupported relational operator in EIA"
       in
       let lhs = to_rlia_term lhs in

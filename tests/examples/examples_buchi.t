@@ -4,8 +4,7 @@ Test on LIA with Buchi-V predicate (symbolic)
 
 Test on LIA with Buchi-V predicate (parametric)
   $ timeout 5 ParSym example_buchi.smt2 -par
-  timeout
-  [124]
+  sat
 
 Test on LIA with Buchi-V predicate from Intro (symbolic) in bases 2--10
   $ ParSym example_intro.smt2 -bmin 2 -bmax 10

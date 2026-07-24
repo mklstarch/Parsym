@@ -204,7 +204,7 @@ type state =
   }
 
 let () =
-  Smtml.Expr.use_eval := false;
+  (* Smtml.Expr.use_eval := false; *)
   let smt_f =
     match Fpath.of_string _config.input_file with
     | Result.Error (`Msg msg) ->
@@ -263,7 +263,7 @@ let () =
         | _ -> state.tys
       in
       { state with tys }
-    | Smtml.Ast.Set_logic (Smtml.Logic.QF_S | Smtml.Logic.QF_SLIA) ->
+    | Smtml.Ast.Set_logic Smtml.Logic.QF_S ->
       (* _config.under_approx <- 0; *)
       _config.over_approx <- false;
       state
@@ -336,7 +336,7 @@ let () =
       List.fold_left
         exec
         { asserts = []; prev = None; last_result = None; tys = Map.empty }
-        smt_f
+        (smt_f |> Result.get_ok)
     with
     | Fe.UnsupportedException _ ->
       Format.eprintf "\027[31mFronted error\027[0m\n%!";

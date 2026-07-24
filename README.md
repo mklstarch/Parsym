@@ -1,26 +1,37 @@
-[![Parsym][1]][2]
-[![License](https://img.shields.io/badge/license-MIT-blue)](https://github.com/Parsym/LICENSE)
-
-[1]:  https://github.com/mklstarch/Parsym/actions/workflows/build-linux.yml/badge.svg
-[2]:  https://github.com/mklstarch/Parsym/actions
-
 # Parsym - SMT-solver based on (parametric) symbolic automata for Büchi arithmetic on parametric base 
 
-TODO
+Supplementary Material for Submission #360
+
+## Executable binary for Linux x86-64
+
+You can simply use 
+
+```bash
+./parsym file.smt2
+```
 
 ## Building
 
-TODO
+To build the project from source files you need first to install dependencies:
 
-## Usage
+```bash
+# Installing the OCaml package manager
+bash -c "sh <(curl -fsSL https://opam.ocaml.org/install.sh)"
+# Initializing the package manager. It might ask you to install other common dependencies (e.g. unzip)
+opam init --bare
+# Installing OCaml 5.3.
+opam switch create 5.3.0+flambda --packages=ocaml-variants.5.3.0+options,ocaml-option-flambda --yes
+```
 
-TODO
+'parsym' is built as follows:
 
+```bash
 
-### Examples
+# Installing Parsym dependencies.
+opam install . --deps-only --with-test
 
-TODO
+# Building the project and its tests.
+opam exec -- dune build @check @all
+```
 
-## Acknowledgements
-
-The project is a spin-off of the [Chrobelias](https://github.com/Chrobelias/Chrobelias) SMT-solver.
+The executable binary is available in the `_build` dir.
