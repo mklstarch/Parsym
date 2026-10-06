@@ -1190,10 +1190,11 @@ module Symbolic (Label : SymL) = struct
         List.iter (fun x -> trace_log "%d; " x) !visited_nodes; *)
         if not (List.mem node !visited_nodes)
         then (* trace_log "Node to ast: %a" AstL.pp_smtlib2 (to_ast node); *)
-          if is_final ( = ) 0 node
+          (* The empty input encodes no number: accept after the sign digit. *)
+          if path <> [] && is_final ( = ) 0 node
           then raise (Sat_found path)
           else begin
-            visited_nodes := node :: !visited_nodes;
+            if path <> [] then visited_nodes := node :: !visited_nodes;
             Seq.iter
               (fun batch ->
                  List.iter

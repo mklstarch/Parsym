@@ -117,23 +117,38 @@ Model of a variable that occurs in a single equation (A = -2)
   > (check-sat)
   > (get-model)
   > EOF
-  $ ParSym single.smt2 -base 3
-  sat
-  (
+  $ ParSym single.smt2 -base 3 | grep -A1 'fun A'
      (define-fun A () Int
       -2)
-     (define-fun B () Int
-      -3)
-     (define-fun C () Int
-      0)
-  )
-  $ ParSym single.smt2 -bmin 3 -bmax 3 -par
-  sat
-  (
+  $ ParSym single.smt2 -bmin 3 -bmax 3 -par | grep -A1 'fun A'
      (define-fun A () Int
       -2)
-     (define-fun B () Int
-      -3)
-     (define-fun C () Int
-      0)
-  )
+
+Negated int.v: the constraints defining internal variables are not negated
+  $ cat > notv.smt2 <<EOF
+  > (set-logic QF_SLIA)
+  > (declare-fun A () Int)
+  > (declare-fun B () Int)
+  > (assert (not (int.v (+ A 1) B)))
+  > (assert (= A 5))
+  > (assert (= B 3))
+  > (check-sat)
+  > EOF
+  $ ParSym notv.smt2 -base 3
+  unsat
+  $ ParSym notv.smt2 -bmin 3 -bmax 3 -par
+  unsat
+
+Negated int.v alone: the empty input is not a model
+  $ cat > notv2.smt2 <<EOF
+  > (set-logic QF_SLIA)
+  > (declare-fun A () Int)
+  > (declare-fun B () Int)
+  > (assert (not (int.v A B)))
+  > (check-sat)
+  > (get-model)
+  > EOF
+  $ ParSym notv2.smt2 -base 3 | head -1
+  sat
+  $ ParSym notv2.smt2 -bmin 3 -bmax 3 -par | head -1
+  sat

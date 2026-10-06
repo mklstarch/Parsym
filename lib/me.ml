@@ -284,7 +284,7 @@ and helper : 'a. 'a Ast.RLia.term -> _ =
   | Iofs v -> return (Symantics.iofs v)
   | other -> raise (Unsupported_constraint (Format.asprintf "%a" Ast.RLia.pp_term other))
 
-and of_rlia2 : Ast.RLia.t -> (Ir.t, string) result =
+and of_rlia2 : Ast.RLia.t -> (Ir.t * Ir.t list, string) result =
   fun rlia ->
   let as_atom = function
     | poly, c when c = Z.zero && Map.length poly = 1 && Map.nth_exn poly 0 |> snd = Z.one
@@ -298,50 +298,41 @@ and of_rlia2 : Ast.RLia.t -> (Ir.t, string) result =
       -> return (Ir.land_ [ Ir.stoi (Ir.var v) (Ir.var u) ]) *)
     | Eq (Atom (Var (v, _)), Str_const str, S) ->
       let l = Ir.var v in
-      return (Ir.sreg l (Regex.int_to_re str))
+      return (Ir.sreg l (Regex.int_to_re str), [])
     | Eq (lhs, rhs, I) ->
       let* lhs = helper lhs in
       let* rhs = helper rhs in
       let poly, c, sups = Symantics.prj (Symantics.minus lhs rhs) in
-      let ans = Ir.land_ (Ir.eq poly c :: sups) in
-      (* trace_log "%a ~~> %a" Ast.RLia.pp rlia Ir.pp ans; *)
-      return ans
-    | Eq (lhs, rhs, S) as seq -> return (Ir.Unsupp (Format.asprintf "%a" Ast.RLia.pp seq))
+      return (Ir.eq poly c, sups)
+    | Eq (lhs, rhs, S) as seq ->
+      return (Ir.Unsupp (Format.asprintf "%a" Ast.RLia.pp seq), [])
     | Neq (lhs, rhs, I) ->
       let* lhs = helper lhs in
       let* rhs = helper rhs in
       let poly, c, sups = Symantics.prj (Symantics.minus lhs rhs) in
-      let ans = Ir.land_ (Ir.neq poly c :: sups) in
-      (* trace_log "%a ~~> %a" Ast.RLia.pp rlia Ir.pp ans; *)
-      return ans
+      return (Ir.neq poly c, sups)
     | Neq (lhs, rhs, S) as sneq ->
-      return (Ir.Unsupp (Format.asprintf "%a" Ast.RLia.pp sneq))
+      return (Ir.Unsupp (Format.asprintf "%a" Ast.RLia.pp sneq), [])
       (* trace_log "%a ~~> %a" Ast.RLia.pp rlia Ir.pp ans; *)
     | Leq (lhs, rhs) ->
       let* lhs = helper lhs in
       let* rhs = helper rhs in
       let poly, c, sups = Symantics.prj (Symantics.minus lhs rhs) in
-      let ans = Ir.land_ (Ir.leq poly c :: sups) in
-      (* trace_log "%a ~~> %a" Ast.RLia.pp rlia Ir.pp ans; *)
-      return ans
+      return (Ir.leq poly c, sups)
     | InRe (str, Ast.S, re) ->
       let* str, sup = of_str_atom str in
-      let ir = Ir.sreg str re in
-      ir :: sup |> Ir.land_ |> return
+      return (Ir.sreg str re, sup)
     | InReRaw (str, Ast.S, re) ->
       let* str, sup = of_str_atom str in
-      let ir = Ir.sregraw str re in
-      ir :: sup |> Ir.land_ |> return
+      return (Ir.sregraw str re, sup)
     | InReRaw (rlia, Ast.I, re) ->
       let* str = helper rlia in
       let str, sups = Symantics.prjs str in
-      let ir = Ir.sregraw str re in
-      ir :: sups |> Ir.land_ |> return
+      return (Ir.sregraw str re, sups)
     | InRe (rlia, Ast.I, re) ->
       let* lhs = helper rlia in
       let lhs, sups = Symantics.prjs lhs in
-      let ir = Ir.sreg lhs re in
-      ir :: sups |> Ir.land_ |> return
+      return (Ir.sreg lhs re, sups)
     | V (rlia, pow) ->
       let flatten expr =
         let poly, c, sups = Symantics.prj expr in
@@ -358,17 +349,20 @@ and of_rlia2 : Ast.RLia.t -> (Ir.t, string) result =
       then
         let* expr = helper rlia in
         let e, sups = flatten expr in
-        return (Ir.land_ (Ir.v e e :: sups))
+        return (Ir.v e e, sups)
       else
         let* expr = helper rlia in
         let* pow = helper pow in
         let e, sups = flatten expr in
         let p, sups' = flatten pow in
         let sups = sups @ sups' in
-        return (Ir.land_ (Ir.v e p :: sups))
+        return (Ir.v e p, sups)
 ;;
 
+(* The constraints of an atom are conjoined at the top or under the nearest
+   [Exists], not at the atom, so that a negation does not apply to them. *)
 let ir_of_ast env ast =
+  let sups = ref [] in
   let rec ir_of_ast (ast : Ast.t) =
     match ast with
     | True -> return Ir.true_
@@ -388,19 +382,27 @@ let ir_of_ast env ast =
             | Ast.Any_atom (Ast.Var (v, _)) -> Ir.var v)
           atoms
       in
+      let outer = !sups in
+      sups := [];
       let* ir = ir_of_ast ast in
-      return (Ir.exists atoms ir)
+      let inner = !sups in
+      sups := outer;
+      return (Ir.exists atoms (Ir.land_ (ir :: inner)))
     | RLia rlia ->
       (try
-         (match Sys.getenv_opt "CHRO_EIA" with
-          (*| Some "old" -> of_rlia*)
-          | _ -> of_rlia2)
-           rlia
+         let* ir, sups' =
+           (match Sys.getenv_opt "CHRO_EIA" with
+            (*| Some "old" -> of_rlia*)
+            | _ -> of_rlia2)
+             rlia
+         in
+         sups := sups' @ !sups;
+         return ir
        with
        | Unsupported_constraint s -> return (Ir.Unsupp s))
     | Unsupp s -> return (Ir.Unsupp s)
     | Pred s -> failf "Unexpected %s" s
   in
   let* ir = ast |> ir_of_ast in
-  ir |> return
+  Ir.land_ (ir :: !sups) |> return
 ;;
