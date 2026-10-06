@@ -110,7 +110,7 @@ let check_sat _ ast : rez list =
     trace_log "Env      :\n  %a\n%!" (Env.pp ~title:"") e;
     match Me.ir_of_ast e ast with
     | Ok ir ->
-      let ir = ir |> Ir.simpl |> Ir.simpl_divisibility in
+      let ir, rewritten = ir |> Ir.simpl |> Ir.simpl_divisibility in
       (match ir with
        | True -> [ sat "simpl" ast e (fun _ -> Result.Ok Map.empty) Map.empty ]
        | Lnot True -> [ Unsat "simpl" ]
@@ -121,7 +121,11 @@ let check_sat _ ast : rez list =
          ir
          |> Solver.check_sat
          |> List.map (function
-           | `Sat get_model -> sat "nfa" ast e get_model Map.empty
+           | `Sat get_model ->
+             let get_model tys =
+               get_model tys |> Result.map (Ir.restore_divisibility rewritten)
+             in
+             sat "nfa" ast e get_model Map.empty
            | `Unsat -> Unsat "nfa"
            | `Unknown _ir -> Unknown (ast, e)))
     | Error _ -> failwith "Unexpected error"

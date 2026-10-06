@@ -649,7 +649,9 @@ let simpl ir =
     | ir -> ir)
 ;;
 
+(* Also returns the rewritten equations, see [restore_divisibility]. *)
 let simpl_divisibility ir =
+  let rewritten = ref [] in
   let short_mod x y =
     let short x y = if Z.(abs x <= abs y) then x else y in
     let z = Z.(x mod y) in
@@ -667,8 +669,7 @@ let simpl_divisibility ir =
       ir
     |> Utils.unique
   in
-  ir
-  |> map (function
+  let rewrite = function
     | Rel (Eq, term, c) as equality ->
       let uniques =
         Map.fold term ~init:[] ~f:(fun ~key ~data acc ->
@@ -689,10 +690,49 @@ let simpl_divisibility ir =
              if eq_atom key var then data else short_mod data coeff)
            |> Map.filter ~f:(fun coeff -> Z.(coeff <> zero))
          in
-         Rel (Eq, term', short_mod c coeff)
+         let c' = short_mod c coeff in
+         rewritten := (var, (term, c), (term', c')) :: !rewritten;
+         Rel (Eq, term', c')
          end
        | [] -> equality)
-    | ir -> ir)
+    | ir -> ir
+  in
+  let ir = map rewrite ir in
+  ir, !rewritten
+;;
+
+(* [simpl_divisibility] keeps satisfiability but not the value of [x], which
+   occurs only in [term = c]. Recompute [x] from [term = c] so that it has the
+   truth value of the rewritten equation [term' = c'] in [model]. *)
+let restore_divisibility rewritten (model : model) =
+  let value m v =
+    match Map.find m v with
+    | Some (`Int z) -> z
+    | _ -> Z.zero
+  in
+  let sum m term =
+    Map.fold term ~init:Z.zero ~f:(fun ~key ~data s -> Z.(s + (data * value m key)))
+  in
+  List.fold_left
+    (fun m (x, (term, c), (term', c')) ->
+       if not (Map.mem m x)
+       then m
+       else (
+         let m =
+           Map.fold term ~init:m ~f:(fun ~key ~data:_ m ->
+             if Map.mem m key then m else Map.set m ~key ~data:(`Int Z.zero))
+         in
+         let a = Map.find_exn term x in
+         let r = Z.(c - sum m term + (a * value m x)) in
+         let x_value =
+           match Z.(equal (rem r a) zero), Z.equal (sum m term') c' with
+           | true, true -> Z.(r / a)
+           | true, false -> Z.(succ (r / a))
+           | false, _ -> value m x
+         in
+         Map.set m ~key:x ~data:(`Int x_value)))
+    model
+    rewritten
 ;;
 
 let simpl_ineq ir =

@@ -1060,6 +1060,23 @@ module Symbolic (Label : SymL) = struct
       , each (fun nfa -> nfa.final)
       , each (fun nfa -> nfa.extra) )
     in
+    let starts_n = each (fun nfa -> nfa.start) in
+    (* An automaton without a transition on the next digits rejects the input:
+       its atom moves to [sink], a rejecting state. Needed only if the skeleton
+       can be true with this atom false. *)
+    let sink = -1 in
+    let may_be_false =
+      List.mapi
+        (fun n _ ->
+           AstL.map
+             (function
+               | Pred s when AstL.get_atom_num_exn s = n -> AstL.false_
+               | ast -> ast)
+             skel
+           |> SimplI.check_sat
+           |> ( <> ) `Unsat)
+        nfas'
+    in
     let visited_nodes = ref [] in
     let weigted_states = each assign_weights in
     trace_log "States have the following weights%!";
@@ -1092,9 +1109,27 @@ module Symbolic (Label : SymL) = struct
       product of these lists to obtain a list of new 'states', the successors. 
       The formulas on the labels are combined = we take the conjunction of them using the function 
       [Label.combine_list]. *)
+      let delta n q =
+        if q = sink
+        then [ Label.top, sink ]
+        else (
+          let delta = (List.nth nfa_transitions n).(q) in
+          if List.nth may_be_false n
+          then (
+            let stuck =
+              Label.combine_list (List.map (fun (l, _) -> Label.negate l) delta)
+            in
+            let stuck =
+              if Set.mem (List.nth starts_n n) q
+              then Label.combine (Label.get_sign_digits ~base stuck) stuck
+              else stuck
+            in
+            (stuck, sink) :: delta)
+          else delta)
+      in
       let transitions =
-        nfa_transitions
-        |> List.mapi (fun n arr -> Array.get arr (List.nth state n))
+        state
+        |> List.mapi delta
         |> Utils.cartesian2
         |> List.map (fun choice ->
           List.fold_right
