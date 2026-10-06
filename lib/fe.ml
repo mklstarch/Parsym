@@ -101,7 +101,7 @@ and to_rlia_term orig_expr : Z.t Ast.RLia.term =
   match expr with
   | Expr.Val v ->
     begin match v with
-    | Int d -> Ast.RLia.const (Z.of_int d)
+    | Int d -> Ast.RLia.const d
     | _ -> failf (Format.asprintf "unable to handle %a as integer term" Expr.pp orig_expr)
     end
   | Expr.App ({ name = Symbol.Simple "str.to.int"; _ }, [ expr ])
@@ -140,7 +140,7 @@ and to_rlia_term orig_expr : Z.t Ast.RLia.term =
   (* mod *)
   | Expr.Binop (_, Ty.Binop.Rem, lhs, rhs) ->
     (match Expr.view rhs with
-     | Expr.Val (Int d) -> Ast.RLia.Mod (to_rlia_term lhs, Z.of_int d)
+     | Expr.Val (Int d) -> Ast.RLia.Mod (to_rlia_term lhs, d)
      | _ -> failf (Format.asprintf "expected term, in %a" Expr.pp orig_expr))
   | _ -> failf (Format.asprintf "expected term, in %a" Expr.pp orig_expr)
 

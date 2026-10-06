@@ -484,8 +484,9 @@ let make_main_symantics env =
       | _ -> ofop l r
     ;;
 
-    let cancel_left op lhs rhs =
+    let cancel_left rel lhs rhs =
       let open AstL.Lia in
+      let op = relop rel in
       let simplify divisor =
         let divide_by d = function
           | Mul (Const lc :: ltl) -> Mul (Const Z.(lc / d) :: ltl)
@@ -510,9 +511,14 @@ let make_main_symantics env =
       let lhs' = List.filter (fun x -> Bool.not (List.mem x rhs)) lhs in
       let rhs' = List.filter (fun x -> Bool.not (List.mem x lhs)) rhs in
       let gcd_l, gcd_r = gcd lhs', gcd rhs' in
-      match lhs', rhs' with
-      | [ Const c ], _ when Z.(c mod gcd_r <> zero) -> false_
-      | _, [ Const c ] when Z.(c mod gcd_l <> zero) -> false_
+      match rel, lhs', rhs' with
+      | Eq, [ Const c ], _ when Z.(c mod gcd_r <> zero) -> false_
+      | Eq, _, [ Const c ] when Z.(c mod gcd_l <> zero) -> false_
+      (* c <= g*y iff ceil(c/g) <= y, and g*y <= c iff y <= floor(c/g) *)
+      | Leq, [ Const c ], _ when Z.(c mod gcd_r <> zero) ->
+        op (constz Z.(cdiv c gcd_r)) (simplify gcd_r rhs')
+      | Leq, _, [ Const c ] when Z.(c mod gcd_l <> zero) ->
+        op (simplify gcd_l lhs') (constz Z.(fdiv c gcd_l))
       | _ ->
         let d = Z.gcd gcd_l gcd_r in
         op (simplify d lhs') (simplify d rhs')
@@ -523,9 +529,9 @@ let make_main_symantics env =
     let leq l r =
       let open AstL.Lia in
       match l, r with
-      | Add lhs, Add rhs -> cancel_left (relop Leq) lhs rhs
-      | lhs, Add rhs -> cancel_left (relop Leq) [ lhs ] rhs
-      | Add lhs, rhs -> cancel_left (relop Leq) lhs [ rhs ]
+      | Add lhs, Add rhs -> cancel_left Leq lhs rhs
+      | lhs, Add rhs -> cancel_left Leq [ lhs ] rhs
+      | Add lhs, rhs -> cancel_left Leq lhs [ rhs ]
       | _ -> relop Leq l r
     ;;
 
@@ -533,9 +539,9 @@ let make_main_symantics env =
       let open AstL.Lia in
       match l, r with
       | l, r when eq_term l r -> true_
-      | Add lhs, Add rhs -> cancel_left (relop Eq) lhs rhs
-      | lhs, Add rhs -> cancel_left (relop Eq) [ lhs ] rhs
-      | Add lhs, rhs -> cancel_left (relop Eq) lhs [ rhs ]
+      | Add lhs, Add rhs -> cancel_left Eq lhs rhs
+      | lhs, Add rhs -> cancel_left Eq [ lhs ] rhs
+      | Add lhs, rhs -> cancel_left Eq lhs [ rhs ]
       | Mul (Const lc :: ltl), Mul (Const rc :: rtl) ->
         let gcd1 = Z.gcd lc rc in
         if Z.(equal gcd1 one)
@@ -707,7 +713,7 @@ module SMT : Smtml_symantics = struct
 
   let exists vs ph =
     Smtml.Expr.exists
-      (List.map (fun s -> Smtml.Expr.symbol (Smtml.Symbol.make Ty_int s)) vs)
+      (List.map (fun s -> Smtml.Expr.symbol (Smtml.Symbol.make_const Ty_int s)) vs)
       ph
   ;;
 end
@@ -865,8 +871,8 @@ let get_states_z3 ph get_state =
                 match k.name, v with
                 | Smtml.Symbol.Simple s, Smtml.Value.Int n
                   when String.starts_with ~prefix:"lia" s ->
-                  Debug.trace "Z3" "%s = %d;" s n;
-                  Lia (Lia.eq (atom (int_var s)) (const (Z.of_int n))) :: acc
+                  Debug.trace "Z3" "%s = %a;" s Z.pp_print n;
+                  Lia (Lia.eq (atom (int_var s)) (const n)) :: acc
                 | _ -> acc)
              (Smtml.Z3_mappings.values_of_model m)
              []

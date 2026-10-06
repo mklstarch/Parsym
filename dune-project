@@ -21,7 +21,8 @@
   ppx_regexp
   ppx_deriving
   ppx_variants_conv
-  smtml
+  (smtml
+   (>= 0.30.0))
   ounit2
   z3
   ppx_expect

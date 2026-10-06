@@ -118,14 +118,7 @@ end = struct
   let str_const _ = failwith "not implemented"
   let str_var _ = failwith "not implemented"
   let const n = Smtml.Expr.value (Value.Int n)
-
-  let constz z =
-    match Z.to_int z with
-    | exception Z.Overflow -> failwith "What to do?"
-    | n -> Expr.value (Value.Int n)
-  [@@ocaml.warnerror "-32"]
-  ;;
-
+  let constz z = Expr.value (Value.Int z) [@@ocaml.warnerror "-32"]
   let mod_ _ _ = failwith "not implemented"
 
   let add = function
@@ -136,7 +129,7 @@ end = struct
   ;;
 
   let mul = function
-    | [] -> const 1
+    | [] -> const Z.one
     | x :: xs -> List.fold_left (Expr.binop Ty.Ty_int Ty.Binop.Mul) x xs
   ;;
 
@@ -150,7 +143,7 @@ end = struct
   let true_ = Expr.Bool.true_
   let false_ = Expr.Bool.false_
   let not = Expr.Bool.not
-  let pred s = Expr.symbol (Smtml.Symbol.make Smtml.Ty.Ty_bool s)
+  let pred s = Expr.symbol (Smtml.Symbol.make_const Smtml.Ty.Ty_bool s)
 
   let land_ = function
     | [] -> false_
@@ -162,7 +155,7 @@ end = struct
     | h :: tl -> List.fold_left Expr.Bool.or_ h tl
   ;;
 
-  let var s = Expr.symbol (Smtml.Symbol.make Smtml.Ty.Ty_int s)
+  let var s = Expr.symbol (Smtml.Symbol.make_const Smtml.Ty.Ty_int s)
   let in_re _ _ = failwith __FILE__
 
   (* let exists vars x = Smtml.Expr.exists (List.map var vars) x *)
