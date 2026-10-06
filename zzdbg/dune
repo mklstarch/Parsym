@@ -1,3 +1,0 @@
-(executable
- (name dbg)
- (libraries lib zarith))

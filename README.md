@@ -68,7 +68,3 @@ opam exec -- dune build ./bin/parsym.exe
 ```
 
 The binary is `_build/default/bin/parsym.exe`.
-
-## License
-
-MIT, see `LICENSE`.
