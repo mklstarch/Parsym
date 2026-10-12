@@ -15,6 +15,10 @@
   ocaml
   dune
   angstrom
+  base
+  lwt
+  ppx_compare
+  ppx_assert
   zarith
   bitv
   iter

@@ -7,6 +7,10 @@ depends: [
   "ocaml"
   "dune" {>= "3.16"}
   "angstrom"
+  "base"
+  "lwt"
+  "ppx_compare"
+  "ppx_assert"
   "zarith"
   "bitv"
   "iter"
