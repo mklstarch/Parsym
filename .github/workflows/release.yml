@@ -1,0 +1,118 @@
+name: Release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
+    # The checkout is owned by the runner's uid while the container runs as
+    # root, so git refuses to touch it. opam runs git with GIT_CONFIG_GLOBAL
+    # and GIT_CONFIG_SYSTEM pointed at /dev/null, so "git config --global /
+    # --system" never reaches it; the GIT_CONFIG_COUNT variables are kept.
+    env:
+      GIT_CONFIG_COUNT: 1
+      GIT_CONFIG_KEY_0: safe.directory
+      GIT_CONFIG_VALUE_0: "*"
+    steps:
+      - run: apk add alpine-sdk
+
+      - uses: actions/checkout@v4
+
+      - name: Install extra dependencies
+        run: apk add bash sqlite sqlite-dev gmp gmp-dev gmp-static cmake python3 bubblewrap gnupg wget
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: ocaml-variants.5.3.0+options,ocaml-option-flambda,ocaml-option-static
+          opam-pin: false
+
+      - run: opam --version
+      - run: opam exec -- ocamlopt --version
+
+      - name: Build and install static Z3
+        run: |
+          git clone --depth 1 --branch z3-4.16.0 https://github.com/Z3Prover/z3.git z3
+          cp ./scripts/z3-static.opam z3/opam
+          eval $(opam env)
+          (cd z3 &&
+           opam install . --yes)
+
+      - name: Install dependencies
+        run: opam install . --deps-only --yes
+
+      - name: List opam packages
+        run: opam list
+
+      - name: Build
+        run: opam exec -- dune build --release ./bin/parsym.exe
+
+      - run: cp _build/default/bin/parsym.exe parsym
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Parsym
+          path: parsym
+
+  smoke-test:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: tests
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Parsym
+          path: bin
+
+      - run: chmod +x bin/parsym
+
+      - name: Check the binary is static
+        run: |
+          file bin/parsym
+          if ldd bin/parsym; then
+            echo "Error: parsym is dynamically linked"
+            exit 1
+          fi
+
+      - name: Solve a sat example
+        run: |
+          bin/parsym -base 3 tests/test.smt2 | tee out.txt
+          [ "$(head -n1 out.txt)" = sat ]
+
+      - name: Solve an unsat example
+        run: |
+          bin/parsym -base 2 tests/examples/example.smt2 | tee out.txt
+          [ "$(head -n1 out.txt)" = unsat ]
+
+  draft-release:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Parsym
+          path: bin
+
+      - name: Draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            bin/parsym
+          token: "${{ secrets.GITHUB_TOKEN }}"

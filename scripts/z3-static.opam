@@ -1,4 +1,8 @@
 opam-version: "2.0"
+# Without an explicit version opam records this local install as "z3.dev", which
+# satisfies none of smtml's z3 version constraints. Keep it in sync with the tag
+# cloned by .github/workflows/release.yml.
+version: "4.16.0"
 maintainer: "weng@cs.jhu.edu"
 authors: "MSR"
 homepage: "https://github.com/Z3prover/z3"
@@ -13,9 +17,15 @@ build: [
   [ make "-C" "build" "-j" jobs ]
 ]
 
+# The static build names the OCaml library Z3; smtml selects its Z3 backend only
+# for the name z3, so the library is installed as z3.
 install: [
-  [ "sed" "-i" "-e" "s/[^[:space:]]*dllz3ml.so[^[:space:]]*//g" "build/Makefile" ]
-  [ "sed" "-i" "-e" "s/[^[:space:]]*libz3ml[^[:space:]]*//g" "build/Makefile" ]
+  [ "sed" "-i"
+    "-e" "s/[^[:space:]]*dllz3ml.so[^[:space:]]*//g"
+    "-e" "s| Z3 api/ml/META| z3 api/ml/META|"
+    "-e" "/ocamlfind remove/ s| Z3$| z3|"
+    "build/Makefile" ]
+  [ "cp" "build/api/ml/libz3ml-static.a" "build/api/ml/libz3ml.a" ]
   [ make "-C" "build" "install" ]
   [ "cp" "build/api/ml/libz3ml-static.a" "/usr/lib/libz3ml-static.a" ]
   [ "cp" "build/libz3-static.a" "/usr/lib/libz3-static.a" ]
@@ -38,5 +48,5 @@ conflicts: [
 synopsis: "Z3 solver"
 url {
   src:
-    "https://github.com/Z3Prover/z3/archive/refs/tags/z3-4.15.2.tar.gz"
+    "https://github.com/Z3Prover/z3/archive/refs/tags/z3-4.16.0.tar.gz"
 }
